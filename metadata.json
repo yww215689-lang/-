@@ -1,0 +1,5 @@
+{
+  "name": "智刷题 (SmartBrush)",
+  "description": "An intelligent mobile-first question bank app that uses Gemini to extract questions from PDF files and provides random, sequential, and mistake-focused practice modes.",
+  "requestFramePermissions": []
+}
