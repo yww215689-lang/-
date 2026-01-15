@@ -1,14 +1,14 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuiz } from '../context/QuizContext';
 import { Question, QuizMode } from '../types';
-import Button from '../components/Button';
-import { ArrowLeft, Check, X, HelpCircle, ChevronRight, PenLine, StickyNote, ClipboardList, SkipForward } from 'lucide-react';
+import { ArrowLeft, Check, X, HelpCircle, ChevronRight, StickyNote, Star } from 'lucide-react';
 
 const Quiz: React.FC = () => {
   const { mode } = useParams<{ mode: string }>();
   const navigate = useNavigate();
-  const { questions, wrongQuestionIds, dueQuestions, recordAnswer, updateNote, submitSRSReview } = useQuiz();
+  const { questions, wrongQuestionIds, dueQuestions, recordAnswer, updateNote, submitSRSReview, toggleQuestionFavorite } = useQuiz();
 
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -17,20 +17,18 @@ const Quiz: React.FC = () => {
   const [showExplanation, setShowExplanation] = useState(false);
   const [currentNote, setCurrentNote] = useState('');
   
-  // Ref to track if the quiz session has been initialized with questions
-  // This prevents re-initialization (and resetting progress) when global state changes (e.g. recording an answer)
   const isInitialized = useRef(false);
-
-  // SRS Logic: Was the answer correct?
   const [answerIsCorrect, setAnswerIsCorrect] = useState(false);
 
-  // Initialize questions based on mode
-  useEffect(() => {
-    // If already initialized, do not reset even if dependencies change.
-    // This ensures a stable quiz session.
-    if (isInitialized.current) return;
+  const vibrate = (type: 'light' | 'medium' | 'heavy' = 'light') => {
+      if (!navigator.vibrate) return;
+      if (type === 'light') navigator.vibrate(5);
+      if (type === 'medium') navigator.vibrate(15);
+      if (type === 'heavy') navigator.vibrate([10, 50, 10]);
+  };
 
-    // Wait for questions to be loaded from storage
+  useEffect(() => {
+    if (isInitialized.current) return;
     if (questions.length === 0) return;
 
     let qList: Question[] = [];
@@ -39,7 +37,6 @@ const Quiz: React.FC = () => {
     } else if (mode === QuizMode.REVIEW) {
       qList = [...dueQuestions];
     } else if (mode === QuizMode.EXAM) {
-      // Exam Mode: Shuffle all and pick top 20
       qList = [...questions].sort(() => Math.random() - 0.5).slice(0, 20);
     } else {
       qList = [...questions];
@@ -65,6 +62,7 @@ const Quiz: React.FC = () => {
 
   const handleOptionSelect = (index: number) => {
     if (isSubmitted) return;
+    vibrate('light');
     setSelectedOption(index);
   };
 
@@ -74,32 +72,32 @@ const Quiz: React.FC = () => {
     const isCorrect = selectedOption === currentQuestion.answerIndex;
     setAnswerIsCorrect(isCorrect);
     
-    // This updates global context, but thanks to isInitialized ref, local state won't reset
+    if (isCorrect) vibrate('medium');
+    else vibrate('heavy');
+
     recordAnswer(currentQuestion.id, isCorrect, selectedOption);
     setIsSubmitted(true);
     
-    // In normal mode/exam mode, if wrong, auto-open explanation
     if (!isCorrect && mode !== QuizMode.REVIEW) {
         setShowExplanation(true);
     }
   };
 
   const handleSkip = () => {
-    // Skip: Advance without recording answer
+    vibrate('light');
     advanceQuestion();
   };
 
   const handleNext = () => {
-    // In Review mode, if user proceeds without explicitly grading (e.g. via Next button),
-    // and they got it wrong, we treat it as "Again" (Grade 1).
     if (mode === QuizMode.REVIEW && !answerIsCorrect) {
         submitSRSReview(currentQuestion.id, 1); 
     }
-
+    vibrate('light');
     advanceQuestion();
   };
 
   const handleSRSGrade = (grade: number) => {
+      vibrate('medium');
       submitSRSReview(currentQuestion.id, grade);
       advanceQuestion();
   };
@@ -127,17 +125,29 @@ const Quiz: React.FC = () => {
       }
   };
 
+  const toggleFavorite = () => {
+      if (!currentQuestion) return;
+      toggleQuestionFavorite(currentQuestion.id);
+      
+      // Also update local state to reflect change immediately in UI if context update is async or batched
+      // (Though Context in React usually triggers re-render, sometimes local copy needs update)
+      // Since activeQuestions is a copy of questions from context at init, we need to update it manually
+      // or rely on the fact that we might re-fetch from context.
+      // Actually, 'activeQuestions' is state. We should update it to show the visual change.
+      setActiveQuestions(prev => prev.map(q => q.id === currentQuestion.id ? { ...q, isFavorite: !q.isFavorite } : q));
+  };
+
   if (activeQuestions.length === 0 && isInitialized.current) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center min-h-screen text-center">
-        <p className="text-gray-500 mb-4">当前模式下没有可用的题目。</p>
-        <Button onClick={() => navigate('/')}>返回主页</Button>
+      <div className="p-6 flex flex-col items-center justify-center h-dvh text-center bg-slate-50">
+        <p className="text-slate-500 mb-4">暂无题目</p>
+        <button onClick={() => navigate('/')} className="text-indigo-600 font-bold">返回主页</button>
       </div>
     );
   }
 
   if (!currentQuestion) {
-      return <div className="p-6 text-center text-gray-500 mt-10">加载中...</div>;
+      return <div className="p-6 text-center text-slate-500 mt-10">加载中...</div>;
   }
 
   const progress = ((currentIndex + 1) / activeQuestions.length) * 100;
@@ -145,56 +155,69 @@ const Quiz: React.FC = () => {
   const isExamMode = mode === QuizMode.EXAM;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-10">
-        <button onClick={() => navigate(-1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-          <ArrowLeft size={20} />
+    <div className="h-dvh bg-slate-50 flex flex-col overflow-hidden">
+      {/* Light Header */}
+      <div className="bg-white px-3 pt-safe-offset flex items-center justify-between z-10 h-16 shadow-sm">
+        <button onClick={() => navigate(-1)} className="p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
+          <ArrowLeft size={22} />
         </button>
-        <div className="flex flex-col items-center">
-            <span className="font-semibold text-gray-700">
-            {currentIndex + 1} / {activeQuestions.length}
-            </span>
-            {isExamMode && <span className="text-[10px] text-purple-600 font-bold">模拟考试</span>}
+        
+        {/* Progress Pill */}
+        <div className="bg-slate-100 rounded-full h-8 px-4 flex items-center gap-2">
+             <span className="text-sm font-bold text-slate-700">{currentIndex + 1}</span>
+             <span className="text-xs text-slate-300">/</span>
+             <span className="text-xs text-slate-500">{activeQuestions.length}</span>
         </div>
-        <div className="w-8" /> 
-      </div>
 
-      {/* Progress Bar */}
-      <div className="h-1 bg-gray-200 w-full">
+        <button 
+            onClick={toggleFavorite}
+            className={`p-2 rounded-full transition-colors ${currentQuestion.isFavorite ? 'text-yellow-400' : 'text-slate-300 hover:text-slate-500'}`}
+        >
+           <Star size={22} fill={currentQuestion.isFavorite ? "currentColor" : "none"} />
+        </button>
+      </div>
+      
+      {/* Progress Line */}
+      <div className="h-1 bg-slate-100 w-full shrink-0">
         <div 
-          className={`h-full transition-all duration-300 ${isExamMode ? 'bg-purple-500' : 'bg-blue-500'}`}
+          className={`h-full transition-all duration-300 ${isExamMode ? 'bg-orange-500' : 'bg-indigo-500'}`}
           style={{ width: `${progress}%` }} 
         />
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-6 pb-40 overflow-y-auto">
+      <div className="flex-1 p-5 overflow-y-auto no-scrollbar pb-24">
         <div className="mb-8">
-          <span className={`inline-block px-2 py-1 text-xs font-bold rounded mb-3 ${isExamMode ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-            单选题 {isReviewMode && "· 复习"} {isExamMode && "· 随机抽测"}
-          </span>
-          <h2 className="text-xl font-bold text-gray-900 leading-relaxed selection:bg-yellow-200">
+          <div className="flex gap-2 mb-3">
+             <span className="bg-white border border-slate-200 text-slate-500 text-[10px] px-2 py-0.5 rounded shadow-sm">
+                 单选题
+             </span>
+             {isExamMode && <span className="bg-orange-50 text-orange-600 text-[10px] px-2 py-0.5 rounded font-bold">考试中</span>}
+             {isReviewMode && <span className="bg-amber-50 text-amber-600 text-[10px] px-2 py-0.5 rounded font-bold">复习中</span>}
+          </div>
+          <h2 className="text-[1.15rem] font-bold text-slate-800 leading-relaxed tracking-tight">
             {currentQuestion.question}
           </h2>
         </div>
 
         <div className="space-y-3">
           {currentQuestion.options.map((option, index) => {
-            let containerStyle = "bg-white border-gray-200 text-gray-700 hover:bg-gray-50";
+            let containerStyle = "bg-white border border-transparent shadow-sm";
+            let circleStyle = "border-2 border-slate-200 text-slate-400";
             
             if (isSubmitted) {
               if (index === currentQuestion.answerIndex) {
-                containerStyle = "bg-green-50 border-green-500 text-green-700 ring-1 ring-green-500";
+                containerStyle = "bg-green-50 border-green-500 ring-1 ring-green-500 shadow-none";
+                circleStyle = "bg-green-500 border-green-500 text-white";
               } else if (index === selectedOption && index !== currentQuestion.answerIndex) {
-                containerStyle = "bg-red-50 border-red-500 text-red-700 ring-1 ring-red-500";
+                containerStyle = "bg-red-50 border-red-500 ring-1 ring-red-500 shadow-none";
+                circleStyle = "bg-red-500 border-red-500 text-white";
               } else {
-                 containerStyle = "bg-white border-gray-100 text-gray-400 opacity-60";
+                 containerStyle = "bg-slate-50 opacity-60 shadow-none";
               }
             } else if (selectedOption === index) {
-              containerStyle = isExamMode 
-                ? "bg-purple-50 border-purple-500 text-purple-700 ring-1 ring-purple-500"
-                : "bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500";
+              containerStyle = "bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500 shadow-md";
+              circleStyle = "bg-indigo-500 border-indigo-500 text-white";
             }
 
             return (
@@ -202,46 +225,41 @@ const Quiz: React.FC = () => {
                 key={index}
                 onClick={() => handleOptionSelect(index)}
                 disabled={isSubmitted}
-                className={`w-full p-4 text-left border rounded-xl transition-all flex items-start gap-3 ${containerStyle}`}
+                className={`w-full p-4 text-left rounded-2xl transition-all duration-200 flex items-start gap-4 active:scale-[0.98] ${containerStyle}`}
               >
-                <div className={`
-                  flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold mt-0.5
-                  ${isSubmitted && index === currentQuestion.answerIndex ? 'bg-green-500 border-green-500 text-white' : ''}
-                  ${isSubmitted && index === selectedOption && index !== currentQuestion.answerIndex ? 'bg-red-500 border-red-500 text-white' : ''}
-                  ${!isSubmitted && index === selectedOption ? (isExamMode ? 'bg-purple-500 border-purple-500 text-white' : 'bg-blue-500 border-blue-500 text-white') : 'border-gray-300'}
-                `}>
+                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 transition-colors ${circleStyle}`}>
                   {String.fromCharCode(65 + index)}
                 </div>
-                <span className="text-sm font-medium leading-relaxed">{option}</span>
+                <span className={`text-[15px] leading-relaxed ${isSubmitted && index !== currentQuestion.answerIndex && index !== selectedOption ? 'text-slate-400' : 'text-slate-700'}`}>
+                    {option}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Explanation & Notes Section */}
+        {/* Explanation */}
         {isSubmitted && (
-          <div className="mt-8 animate-fade-in space-y-4">
-             {/* Explanation */}
-             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                <div className="flex items-center gap-2 text-blue-800 font-bold mb-2">
+          <div className="mt-8 animate-fade-in space-y-5">
+             <div className="bg-white p-5 rounded-2xl shadow-soft">
+                <div className="flex items-center gap-2 text-indigo-600 font-bold mb-3 text-sm">
                    <HelpCircle size={18} />
                    解析
                 </div>
-                <p className="text-sm text-blue-900 leading-relaxed">
+                <p className="text-[14px] text-slate-600 leading-7 text-justify">
                    {currentQuestion.explanation || "暂无详细解析"}
                 </p>
              </div>
 
-             {/* Notes */}
-             <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
-                <div className="flex items-center gap-2 text-yellow-800 font-bold mb-2">
+             <div className="bg-yellow-50 p-5 rounded-2xl border border-yellow-100">
+                <div className="flex items-center gap-2 text-yellow-700 font-bold mb-3 text-sm">
                    <StickyNote size={18} />
                    笔记
                 </div>
                 <textarea 
-                    className="w-full bg-white/50 border border-yellow-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 placeholder-yellow-800/30"
+                    className="w-full bg-white border-0 rounded-xl p-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 placeholder-yellow-300/50"
                     rows={3}
-                    placeholder="在这里记录你的心得..."
+                    placeholder="记点什么..."
                     value={currentNote}
                     onChange={(e) => setCurrentNote(e.target.value)}
                     onBlur={saveNote}
@@ -252,41 +270,41 @@ const Quiz: React.FC = () => {
       </div>
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-20 safe-bottom">
+      <div className="bg-white border-t border-slate-100 px-5 pt-3 pb-safe-offset z-20 shrink-0">
         {!isSubmitted ? (
-          <div className="flex gap-3">
+          <div className="flex gap-4">
              <button
                onClick={handleSkip}
-               className="bg-gray-100 text-gray-500 px-4 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-gray-200"
+               className="text-slate-400 px-6 py-3 font-bold text-sm rounded-full hover:bg-slate-50 transition-colors"
              >
-               <SkipForward size={18} />
                跳过
              </button>
-             <Button 
+             <button 
                 onClick={handleSubmit} 
                 disabled={selectedOption === null}
-                className={`flex-1 ${isExamMode ? "bg-purple-600 hover:bg-purple-700 shadow-purple-200" : ""}`}
+                className={`flex-1 py-3 px-6 rounded-full font-bold text-sm text-white shadow-lg transition-all active:scale-[0.98] ${
+                    selectedOption === null 
+                    ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed' 
+                    : (isExamMode ? 'bg-orange-500 shadow-orange-200' : 'bg-indigo-600 shadow-indigo-200')
+                }`}
              >
                 提交答案
-             </Button>
+             </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-             {/* SRS Actions only show if in Review Mode AND Correct */}
              {isReviewMode && answerIsCorrect ? (
                  <div className="grid grid-cols-3 gap-3">
-                     <button onClick={() => handleSRSGrade(3)} className="bg-yellow-100 text-yellow-700 py-3 rounded-xl font-bold text-sm active:scale-95">困难</button>
-                     <button onClick={() => handleSRSGrade(4)} className="bg-blue-100 text-blue-700 py-3 rounded-xl font-bold text-sm active:scale-95">良好</button>
-                     <button onClick={() => handleSRSGrade(5)} className="bg-green-100 text-green-700 py-3 rounded-xl font-bold text-sm active:scale-95">简单</button>
+                     <button onClick={() => handleSRSGrade(3)} className="bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-sm active:scale-95">困难</button>
+                     <button onClick={() => handleSRSGrade(4)} className="bg-blue-50 text-blue-600 py-3 rounded-xl font-bold text-sm active:scale-95">良好</button>
+                     <button onClick={() => handleSRSGrade(5)} className="bg-green-50 text-green-600 py-3 rounded-xl font-bold text-sm active:scale-95">简单</button>
                  </div>
              ) : (
-                 <div className="flex gap-3">
-                    <Button onClick={handleNext} className={`w-full ${isExamMode ? "bg-purple-600 hover:bg-purple-700 shadow-purple-200" : ""}`}>
-                        <span className="flex items-center justify-center gap-2">
-                        {isReviewMode ? '继续 (重置复习)' : '下一题'} <ChevronRight size={18} />
-                        </span>
-                    </Button>
-                 </div>
+                 <button onClick={handleNext} className={`w-full py-3 rounded-full font-bold text-sm text-white shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${
+                     isExamMode ? 'bg-orange-500 shadow-orange-200' : 'bg-indigo-600 shadow-indigo-200'
+                 }`}>
+                    {isReviewMode ? '下一题' : '下一题'} <ChevronRight size={18} />
+                 </button>
              )}
           </div>
         )}

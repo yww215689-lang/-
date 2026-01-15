@@ -1,0 +1,22 @@
+{
+  "short_name": "小墨鱼刷题",
+  "name": "小墨鱼刷题器",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/10609/10609009.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/10609/10609009.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#ffffff",
+  "background_color": "#f8fafc",
+  "description": "本地化智能刷题工具，支持 PDF/Excel 导入"
+}

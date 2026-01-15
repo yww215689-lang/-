@@ -1,5 +1,5 @@
 {
-  "name": "智刷题-(smartbrush)",
+  "name": "小墨鱼刷题器",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,10 +11,13 @@
   "dependencies": {
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "@google/genai": "^1.35.0",
     "lucide-react": "^0.562.0",
     "react-router-dom": "^7.12.0",
-    "xlsx": "latest"
+    "xlsx": "latest",
+    "tesseract.js": "5.0.5",
+    "pdfjs-dist": "4.0.379",
+    "@vitejs/plugin-react": "^5.1.2",
+    "vite": "^7.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

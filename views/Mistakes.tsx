@@ -3,61 +3,68 @@ import { useQuiz } from '../context/QuizContext';
 import { useNavigate } from 'react-router-dom';
 import { QuizMode } from '../types';
 import Button from '../components/Button';
-import { Trash2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Trash2, AlertTriangle, ArrowRight, BookOpen } from 'lucide-react';
 
 const Mistakes: React.FC = () => {
-  const { wrongQuestionIds, clearMistakes, questions } = useQuiz();
+  const { wrongQuestionIds, clearMistakes } = useQuiz();
   const navigate = useNavigate();
 
   const wrongCount = wrongQuestionIds.length;
 
   return (
-    <div className="p-6">
-      <header className="pt-4 pb-8">
-        <h1 className="text-2xl font-bold text-gray-900">错题本</h1>
-        <p className="text-gray-500 text-sm mt-1">攻克弱点，稳步提升</p>
+    <div className="p-5">
+      <header className="pt-8 pb-8">
+        <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+            <span className="text-red-500">
+                <BookOpen size={28} />
+            </span>
+            错题本
+        </h1>
+        <p className="text-slate-400 text-xs font-medium mt-1">攻克弱点，稳步提升</p>
       </header>
 
       {wrongCount === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="bg-green-100 p-6 rounded-full mb-4">
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl border border-slate-100 shadow-sm mt-4">
+          <div className="bg-green-100 p-6 rounded-full mb-4 animate-bounce">
              <span className="text-4xl">🎉</span>
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">太棒了！</h2>
-          <p className="text-gray-500 mb-8">目前没有错题，继续保持！</p>
-          <Button variant="secondary" onClick={() => navigate('/')} className="w-auto px-8">
+          <h2 className="text-xl font-bold text-slate-800 mb-2">太棒了！</h2>
+          <p className="text-slate-400 text-sm mb-8 px-8">目前没有错题记录，保持这个势头！</p>
+          <Button variant="secondary" onClick={() => navigate('/')} className="w-auto px-10 rounded-2xl">
             去刷题
           </Button>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="bg-red-50 border border-red-100 p-6 rounded-2xl flex items-center justify-between">
+          <div className="bg-red-50 border border-red-100 p-6 rounded-3xl flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-red-800 font-bold text-lg">{wrongCount} 道</p>
-              <p className="text-red-500 text-sm">待复习错题</p>
+              <p className="text-red-600 font-black text-3xl">{wrongCount}</p>
+              <p className="text-red-400 text-xs font-bold uppercase tracking-wider mt-1">待复习错题</p>
             </div>
-            <AlertTriangle className="text-red-300" size={40} />
+            <div className="bg-white/50 p-3 rounded-full">
+                <AlertTriangle className="text-red-400" size={32} />
+            </div>
           </div>
 
-          <Button onClick={() => navigate(`/quiz/${QuizMode.MISTAKES}`)}>
+          <Button onClick={() => navigate(`/quiz/${QuizMode.MISTAKES}`)} className="bg-red-500 hover:bg-red-600 text-white shadow-red-200">
             <div className="flex items-center justify-center gap-2">
-                开始复习
+                开始专项复习
                 <ArrowRight size={18} />
             </div>
           </Button>
 
-          <div className="pt-8 border-t border-gray-100">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">管理</h3>
+          <div className="pt-8">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">管理</h3>
             <button 
               onClick={() => {
                 if (window.confirm("确定要清空所有错题记录吗？")) {
                   clearMistakes();
                 }
               }}
-              className="flex items-center gap-3 w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors"
+              className="flex items-center gap-3 w-full p-4 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all active:scale-98"
             >
               <Trash2 size={20} />
-              <span className="font-medium">清空错题本</span>
+              <span className="font-bold text-sm">清空错题本</span>
             </button>
           </div>
         </div>

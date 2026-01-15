@@ -22,14 +22,15 @@ self.onmessage = async (e) => {
       // CPU intensive parsing happens here, off the main thread
       const workbook = XLSX.read(data, { type: 'array' });
       
-      let fullText = "";
-      workbook.SheetNames.forEach(sheetName => {
-        const worksheet = workbook.Sheets[sheetName];
-        const csv = XLSX.utils.sheet_to_csv(worksheet);
-        fullText += \`--- Sheet: \${sheetName} ---\\n\${csv}\\n\\n\`;
-      });
+      // We only parse the first sheet for simplicity, or we could merge them.
+      // Returning array of arrays (JSON) preserves row/col structure.
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
       
-      self.postMessage({ status: 'success', result: fullText });
+      // header: 1 returns type [][]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      self.postMessage({ status: 'success', result: jsonData });
     }
   } catch (err) {
     self.postMessage({ status: 'error', error: err.message });
@@ -65,9 +66,19 @@ export const readFileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-export const parseExcelOrCsvToText = (file: File): Promise<string> => {
+/**
+ * Returns a 2D array of the Excel data [[Row1Col1, Row1Col2], [Row2Col1...]]
+ */
+export const parseExcelOrCsvToData = (file: File, signal?: AbortSignal): Promise<any[][]> => {
   return new Promise((resolve, reject) => {
     const worker = createWorker();
+
+    if (signal) {
+        signal.addEventListener('abort', () => {
+            worker.terminate();
+            reject(new DOMException('Aborted', 'AbortError'));
+        });
+    }
 
     worker.onmessage = (e) => {
       const { status, result, error } = e.data;
